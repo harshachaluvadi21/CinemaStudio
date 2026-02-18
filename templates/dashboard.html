@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Cinema Studio{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar__brand">
+            <span class="sidebar__icon">🎬</span>
+            <span class="sidebar__name">Cinema Studio</span>
+        </div>
+
+        <nav class="sidebar__nav">
+            <a href="#story-input" class="sidebar__link sidebar__link--active" data-section="story-input"
+                id="nav-story">
+                <span class="sidebar__link-icon">✍️</span>
+                <span>Story Input</span>
+            </a>
+            <a href="#screenplay" class="sidebar__link disabled" data-section="screenplay" id="nav-screenplay">
+                <span class="sidebar__link-icon">📜</span>
+                <span>Screenplay</span>
+            </a>
+            <a href="#characters" class="sidebar__link disabled" data-section="characters" id="nav-characters">
+                <span class="sidebar__link-icon">🎭</span>
+                <span>Characters</span>
+            </a>
+            <a href="#sound" class="sidebar__link disabled" data-section="sound" id="nav-sound">
+                <span class="sidebar__link-icon">🎵</span>
+                <span>Sound Design</span>
+            </a>
+        </nav>
+
+        <div class="sidebar__footer">
+            <div class="sidebar__user">
+                <div class="sidebar__avatar">{{ username[0].upper() }}</div>
+                <span class="sidebar__username">{{ username }}</span>
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn btn--ghost btn--sm">Exit</a>
+        </div>
+    </aside>
+
+    <!-- ── Mobile header ──────────────────────────────────────────────── -->
+    <header class="mobile-header">
+        <button class="hamburger" id="hamburger" aria-label="Toggle menu">☰</button>
+        <span class="mobile-header__title">🎬 Cinema Studio</span>
+        <a href="{{ url_for('logout') }}" class="btn btn--ghost btn--sm">Exit</a>
+    </header>
+
+    <!-- ── Main content ───────────────────────────────────────────────── -->
+    <main class="main-content">
+
+        <!-- Story Input Section -->
+        <section class="content-section active" id="story-input">
+            <div class="section-header">
+                <h2 class="section-title">✍️ Your Story Concept</h2>
+                <p class="section-desc">Describe your story idea and let the AI craft a full screenplay, character
+                    profiles, and sound design notes.</p>
+            </div>
+
+            <div class="story-card">
+                <label class="form-label" for="storylineInput">Story Concept</label>
+                <textarea class="story-textarea" id="storylineInput"
+                    placeholder="e.g. A reclusive inventor discovers an alien artifact under his barn in 1950s rural Montana…"
+                    maxlength="2000" rows="6"></textarea>
+                <div class="story-meta">
+                    <span class="char-counter"><span id="charCount">0</span> / 2000</span>
+                </div>
+
+                <button class="btn btn--primary btn--generate" id="generateBtn" onclick="generateContent()">
+                    <span class="btn-text">🎬 Generate Script</span>
+                    <span class="btn-spinner" style="display:none;">
+                        <span class="spinner spinner--sm"></span> Generating…
+                    </span>
+                </button>
+            </div>
+
+            <!-- Error display -->
+            <div class="alert alert--error" id="generateError" style="display:none;"></div>
+
+            <!-- Quick-nav to results (hidden until generated) -->
+            <div class="results-nav" id="resultsNav" style="display:none;">
+                <p class="results-nav__label">Jump to:</p>
+                <button class="btn btn--outline btn--sm" onclick="showSection('screenplay')">📜 Screenplay</button>
+                <button class="btn btn--outline btn--sm" onclick="showSection('characters')">🎭 Characters</button>
+                <button class="btn btn--outline btn--sm" onclick="showSection('sound')">🎵 Sound Design</button>
+            </div>
+        </section>
+
+        <!-- Screenplay Section -->
+        <section class="content-section" id="screenplay">
+            <div class="section-header">
+                <h2 class="section-title">📜 Screenplay</h2>
+                <div class="export-bar">
+                    <span class="export-label">Export:</span>
+                    <button class="btn btn--export" onclick="exportSection('screenplay','txt')">TXT</button>
+                    <button class="btn btn--export" onclick="exportSection('screenplay','pdf')">PDF</button>
+                    <button class="btn btn--export" onclick="exportSection('screenplay','docx')">DOCX</button>
+                </div>
+            </div>
+
+            <div class="output-placeholder" id="screenplay-placeholder">
+                <div class="placeholder-icon">📜</div>
+                <p>Your screenplay will appear here after generation.</p>
+            </div>
+            <pre class="screenplay-output output-block" id="screenplay-output" style="display:none;"></pre>
+        </section>
+
+        <!-- Characters Section -->
+        <section class="content-section" id="characters">
+            <div class="section-header">
+                <h2 class="section-title">🎭 Character Profiles</h2>
+                <div class="export-bar">
+                    <span class="export-label">Export:</span>
+                    <button class="btn btn--export" onclick="exportSection('characters','txt')">TXT</button>
+                    <button class="btn btn--export" onclick="exportSection('characters','pdf')">PDF</button>
+                    <button class="btn btn--export" onclick="exportSection('characters','docx')">DOCX</button>
+                </div>
+            </div>
+
+            <div class="output-placeholder" id="characters-placeholder">
+                <div class="placeholder-icon">🎭</div>
+                <p>Character profiles will appear here after generation.</p>
+            </div>
+            <div class="characters-output output-block" id="characters-output" style="display:none;"></div>
+        </section>
+
+        <!-- Sound Design Section -->
+        <section class="content-section" id="sound">
+            <div class="section-header">
+                <h2 class="section-title">🎵 Sound Design</h2>
+                <div class="export-bar">
+                    <span class="export-label">Export:</span>
+                    <button class="btn btn--export" onclick="exportSection('sound','txt')">TXT</button>
+                    <button class="btn btn--export" onclick="exportSection('sound','pdf')">PDF</button>
+                    <button class="btn btn--export" onclick="exportSection('sound','docx')">DOCX</button>
+                </div>
+            </div>
+
+            <div class="output-placeholder" id="sound-placeholder">
+                <div class="placeholder-icon">🎵</div>
+                <p>Sound design notes will appear here after generation.</p>
+            </div>
+            <div class="sound-output output-block" id="sound-output" style="display:none;"></div>
+        </section>
+
+    </main>
+</div>
+
+<!-- Full-screen loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none;">
+    <div class="loading-card">
+        <div class="film-reel"></div>
+        <p class="loading-title">Crafting your story…</p>
+        <p class="loading-sub">The AI is writing your screenplay, characters, and sound design. This may take a moment.
+        </p>
+    </div>
+</div>
+{% endblock %}

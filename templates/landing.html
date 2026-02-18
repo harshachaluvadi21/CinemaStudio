@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Welcome — Cinema Studio{% endblock %}
+
+{% block content %}
+<div class="landing-page">
+    <div class="landing-hero">
+        <h1 class="landing-title">Cinema Studio</h1>
+        <p class="landing-subtitle">Turn your story idea into a professional screenplay, character profiles, and sound
+            design.</p>
+        <button class="btn btn--primary btn--lg" id="startBtn">Get Started</button>
+    </div>
+</div>
+
+<!-- Name Entry Modal -->
+<div class="modal-overlay" id="nameModal" style="display:none;">
+    <div class="modal">
+        <h2 class="modal-title">Welcome!</h2>
+        <p class="modal-desc">Please enter your name to continue.</p>
+        <div class="form-group">
+            <input type="text" id="userNameInput" class="form-input" placeholder="Your Name" maxlength="30">
+            <p class="error-text" id="nameError" style="display:none;"></p>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn--primary btn--full" id="continueBtn" disabled>Continue</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
