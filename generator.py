@@ -56,6 +56,7 @@ IMPORTANT: Number every scene header (e.g., "SCENE 1: INT. HOUSE - DAY").
 - Character names centered above dialogue (Use Indian names like Arjun, Priya, Rao, etc.)
 - EXTREME DETAIL in Action lines: Describe the setting, atmosphere, micro-expressions, and props in depth.
 - Extended Dialogue: Write long, meaningful conversations. Include "punch dialogues" and emotional monologues.
+- DO NOT INCLUDE CHARACTER PROFILES OR SOUND DESIGN IN THIS SECTION.
 
 {SECTION_MARKERS['characters']}
 Write detailed character profiles (~200 words each) for the 2–3 main characters (Use Indian/Telugu names).
@@ -101,20 +102,53 @@ def parse_response(raw: str) -> dict:
     m = SECTION_MARKERS
     
     # 1. Clean up regex patterns to be flexible with whitespace
-    # Matches "===SCREENPLAY===" with optional surrounding whitespace/formatting
-    def search_marker(marker):
-        # Escape the marker and allow for whitespace or markdown formatting around it
-        # e.g. **===SCREENPLAY===** or === SCREENPLAY ===
-        clean_marker = re.escape(marker).replace(r'\ ', r'\s*')
-        # Allow optional markdown bold/italic chars or spaces around
-        pattern = r"(?:\*\*|__)?\s*" + clean_marker + r"\s*(?:\*\*|__)?"
-        return re.search(pattern, raw, re.IGNORECASE)
+def parse_response(raw: str) -> dict:
+    """
+    Split the raw model response into three sections using robust regex.
 
-    # Find positions of all markers
-    sp_match = search_marker(m["screenplay"])
-    ch_match = search_marker(m["characters"])
-    sd_match = search_marker(m["sound"])
-    end_match = search_marker(m["end"])
+    Args:
+        raw: The full text returned by the model.
+
+    Returns:
+        Dict with keys 'screenplay', 'characters', 'sound'.
+    """
+    # keywords mapped to keys
+    keywords = {
+        "screenplay": "SCREENPLAY",
+        "characters": "CHARACTERS",
+        "sound": "SOUND_DESIGN",
+        "end": "END"
+    }
+
+    def find_section_start(key):
+        kw = keywords[key]
+        # 1. Strict: === KEY === (with optional spaces/bold)
+        pattern_strict = r"(?:\*\*|__)?\s*={2,}\s*" + re.escape(kw) + r"\s*={2,}\s*(?:\*\*|__)?"
+        match = re.search(pattern_strict, raw, re.IGNORECASE)
+        if match:
+            return match
+        
+        # 2. Markdown Header: ### KEY
+        pattern_md = r"(?:\*\*|__)?\s*#{1,6}\s*" + re.escape(kw) + r"\s*(?:\*\*|__)?"
+        match_md = re.search(pattern_md, raw, re.IGNORECASE)
+        if match_md:
+            return match_md
+
+        # 3. Bold/Standalone: **KEY** or just KEY on a line
+        # We need to be careful not to match "Key" inside a sentence.
+        # Enforce start of line or newline, and end of line.
+        pattern_loose = r"(?:^|\n)\s*(?:\*\*|__)?\s*" + re.escape(kw) + r"\s*(?:\*\*|__)?\s*(?:$|\n)"
+        match_loose = re.search(pattern_loose, raw, re.IGNORECASE | re.MULTILINE)
+        if match_loose:
+            return match_loose
+
+        return None
+
+    # Find positions
+    sp_match = find_section_start("screenplay")
+    ch_match = find_section_start("characters")
+    sd_match = find_section_start("sound")
+    end_match = find_section_start("end")
 
     # Helper to extract text between two optional match objects
     def extract(start_match, end_match_candidate):
@@ -124,14 +158,11 @@ def parse_response(raw: str) -> dict:
         end_idx = end_match_candidate.start() if end_match_candidate else len(raw)
         return raw[start_idx:end_idx].strip()
 
-    # Logic: try to find sections based on available markers
-    # We assume the order: Screenplay -> Characters -> Sound
-    
     screenplay = ""
     characters = ""
     sound = ""
 
-    # If NO markers found at all, fall back to thirds
+    # If absolutely no markers found, use thirds as last resort hail mary
     if not (sp_match or ch_match or sd_match):
         logger.warning("No section markers found. Falling back to thirds split.")
         L = len(raw)
@@ -139,16 +170,45 @@ def parse_response(raw: str) -> dict:
         characters = raw[L//3 : 2*L//3].strip()
         sound = raw[2*L//3:].strip()
     else:
-        # Extract Screenplay: from SP marker to CH marker (or SD, or End, or EOF)
-        next_after_sp = ch_match or sd_match or end_match
+        # Determine strict order boundaries
+        # We need to find the "next" section start for each section
+        
+        # For Screenplay: start at sp_match, end at ch_match OR sd_match OR end_match
+        # But what if ch_match is missing? 
+        # We need to find the earliest match that appears AFTER sp_match
+        
+        matches = []
+        if ch_match: matches.append(ch_match)
+        if sd_match: matches.append(sd_match)
+        if end_match: matches.append(end_match)
+        
+        # Filter matches that are actually after sp_match (if it exists)
+        sp_end = sp_match.end() if sp_match else 0
+        valid_next_matches = [m for m in matches if m.start() >= sp_end]
+        next_after_sp = min(valid_next_matches, key=lambda m: m.start()) if valid_next_matches else None
+        
         screenplay = extract(sp_match, next_after_sp)
 
-        # Extract Characters: from CH marker to SD marker (or End, or EOF)
-        next_after_ch = sd_match or end_match
-        characters = extract(ch_match, next_after_ch)
-
-        # Extract Sound: from SD marker to End marker (or EOF)
-        sound = extract(sd_match, end_match)
+        # For Characters: start at ch_match
+        if ch_match:
+            ch_end = ch_match.end()
+            matches_after_ch = []
+            if sd_match: matches_after_ch.append(sd_match)
+            if end_match: matches_after_ch.append(end_match)
+            
+            valid_next = [m for m in matches_after_ch if m.start() >= ch_end]
+            next_after_ch = min(valid_next, key=lambda m: m.start()) if valid_next else None
+            characters = extract(ch_match, next_after_ch)
+            
+        # For Sound: start at sd_match
+        if sd_match:
+            sd_end = sd_match.end()
+            matches_after_sd = []
+            if end_match: matches_after_sd.append(end_match)
+            
+            valid_next = [m for m in matches_after_sd if m.start() >= sd_end]
+            next_after_sd = min(valid_next, key=lambda m: m.start()) if valid_next else None
+            sound = extract(sd_match, next_after_sd)
 
     return {
         "screenplay": screenplay or "(No screenplay generated. Try again or check the logs.)",
