@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── Content Generation ───────────────────────────────────────────────────────
 async function generateContent() {
     const storyline = document.getElementById('storylineInput')?.value?.trim();
+    const genre = document.getElementById('genreSelect')?.value || 'Cinematic Default';
     const errorDiv = document.getElementById('generateError');
     const btn = document.getElementById('generateBtn');
     const overlay = document.getElementById('loadingOverlay');
@@ -169,7 +170,7 @@ async function generateContent() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken(),
             },
-            body: JSON.stringify({ storyline }),
+            body: JSON.stringify({ storyline, genre }),
         });
 
         const data = await resp.json();
@@ -252,7 +253,8 @@ function populateCharacters(text) {
     const isHeading = line => {
         const t = line.trim();
         return (
-            /^#{1,3}\s+.+/.test(t) ||                          // Markdown heading
+            /^#+\s+.+/.test(t) ||                          // Markdown heading (### or #### or more)
+            /^(\*\*)?#+\s+.+(\*\*)?$/.test(t) ||           // **### Name** or similar combo
             (/^[A-Z][A-Z\s\-']{2,40}:?$/.test(t) && t.length < 50) || // ALL CAPS
             /^\*\*[^*]+\*\*$/.test(t)                          // **Bold**
         );
@@ -306,14 +308,16 @@ function populateSound(text) {
 
     const isSceneHeading = line => {
         const t = line.trim();
+        // Handle optional quotes, bold, hashes
+        // e.g. "SCENE 1...", **SCENE 1...**, ### SCENE 1...
         return (
-            /^(Scene\s+\d+|INT\.|EXT\.)/i.test(t) ||
-            /^#{1,3}\s+Scene/i.test(t) ||
-            /^\*\*Scene/i.test(t)
+            /^["']?(Scene\s+\d+|INT\.|EXT\.)/i.test(t) ||
+            /^#+\s+["']?Scene/i.test(t) ||
+            /^\*\*["']?Scene/i.test(t)
         );
     };
 
-    const cleanScene = line => line.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
+    const cleanScene = line => line.replace(/^#+\s*/, '').replace(/\*\*/g, '').replace(/^["']/, '').replace(/["']$/, '').trim();
 
     for (const line of lines) {
         if (isSceneHeading(line)) {
@@ -354,4 +358,127 @@ function escHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+// ── Table Read (TTS) ─────────────────────────────────────────────────────────
+let isSpeaking = false;
+
+function speakScreenplay() {
+    const btn = document.getElementById('speakBtn');
+    const output = document.getElementById('screenplay-output');
+
+    if (!output || !output.textContent.trim()) {
+        alert("Generate a screenplay first!");
+        return;
+    }
+
+    if (isSpeaking) {
+        window.speechSynthesis.cancel();
+        isSpeaking = false;
+        if (btn) btn.innerHTML = '<span class="btn-icon">🎧</span> Listen';
+        return;
+    }
+
+    const text = output.textContent;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1.0;
+
+    utterance.onend = () => {
+        isSpeaking = false;
+        if (btn) btn.innerHTML = '<span class="btn-icon">🎧</span> Listen';
+    };
+
+    utterance.onerror = () => {
+        isSpeaking = false;
+        if (btn) btn.innerHTML = '<span class="btn-icon">🎧</span> Listen';
+    };
+
+    window.speechSynthesis.speak(utterance);
+    isSpeaking = true;
+    if (btn) btn.innerHTML = '<span class="btn-icon">⏹️</span> Stop';
+}
+
+// ── Project Management (Save/Load) ───────────────────────────────────────────
+function saveProject() {
+    const storyline = document.getElementById('storylineInput')?.value || '';
+    const genre = document.getElementById('genreSelect')?.value || 'Cinematic Default';
+
+    const project = {
+        storyline,
+        genre,
+        screenplay: document.getElementById('screenplay-output')?.innerHTML || '',
+        characters: document.getElementById('characters-output')?.innerHTML || '',
+        sound: document.getElementById('sound-output')?.innerHTML || '',
+        timestamp: new Date().toISOString()
+    };
+
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CinemaStudio_Project_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function loadProject(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        try {
+            const project = JSON.parse(e.target.result);
+
+            // Restore Inputs
+            if (document.getElementById('storylineInput'))
+                document.getElementById('storylineInput').value = project.storyline || '';
+            if (document.getElementById('genreSelect'))
+                document.getElementById('genreSelect').value = project.genre || 'Cinematic Default';
+
+            const charCount = document.getElementById('charCount');
+            if (charCount) charCount.textContent = (project.storyline || '').length;
+
+            // Restore Outputs (innerHTML preserves structure)
+            const spOut = document.getElementById('screenplay-output');
+            if (spOut) {
+                spOut.innerHTML = project.screenplay || '';
+                spOut.style.display = project.screenplay ? 'block' : 'none';
+                if (project.screenplay) document.getElementById('screenplay-placeholder').style.display = 'none';
+            }
+
+            const chOut = document.getElementById('characters-output');
+            if (chOut) {
+                chOut.innerHTML = project.characters || '';
+                chOut.style.display = project.characters ? 'flex' : 'none';
+                if (project.characters) document.getElementById('characters-placeholder').style.display = 'none';
+            }
+
+            const sdOut = document.getElementById('sound-output');
+            if (sdOut) {
+                sdOut.innerHTML = project.sound || '';
+                sdOut.style.display = project.sound ? 'flex' : 'none';
+                if (project.sound) document.getElementById('sound-placeholder').style.display = 'none';
+            }
+
+            // Enable Sidebar
+            if (project.screenplay || project.characters || project.sound) {
+                document.querySelectorAll('.sidebar__link.disabled').forEach(link => {
+                    link.classList.remove('disabled');
+                });
+                const resNav = document.getElementById('resultsNav');
+                if (resNav) resNav.style.display = 'flex';
+                showSection('screenplay');
+            }
+
+            alert("Project loaded successfully!");
+
+        } catch (err) {
+            console.error(err);
+            alert("Failed to load project: Invalid JSON file.");
+        }
+    };
+    reader.readAsText(file);
+    input.value = '';
 }

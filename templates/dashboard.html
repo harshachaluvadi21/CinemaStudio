@@ -32,6 +32,15 @@
         </nav>
 
         <div class="sidebar__footer">
+            <!-- Project Actions -->
+            <div class="sidebar__actions"
+                style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                <button class="btn btn--outline btn--sm btn--full" onclick="saveProject()">💾 Save Project</button>
+                <button class="btn btn--outline btn--sm btn--full"
+                    onclick="document.getElementById('loadInput').click()">📂 Load Project</button>
+                <input type="file" id="loadInput" style="display: none;" accept=".json" onchange="loadProject(this)">
+            </div>
+
             <div class="sidebar__user">
                 <div class="sidebar__avatar">{{ username[0].upper() }}</div>
                 <span class="sidebar__username">{{ username }}</span>
@@ -60,6 +69,20 @@
 
             <div class="story-card">
                 <label class="form-label" for="storylineInput">Story Concept</label>
+
+                <div class="form-row" style="margin-bottom: 1rem;">
+                    <select class="form-input form-select" id="genreSelect">
+                        <option value="Cinematic Default">🎬 Cinematic Default</option>
+                        <option value="Film Noir">🕵️‍♂️ Film Noir</option>
+                        <option value="Sci-Fi / Cyberpunk">🤖 Sci-Fi / Cyberpunk</option>
+                        <option value="Fantasy / Adventure">🐉 Fantasy / Adventure</option>
+                        <option value="Psychological Thriller">🧠 Psychological Thriller</option>
+                        <option value="Slapstick Comedy">🍌 Slapstick Comedy</option>
+                        <option value="Period Drama">🏰 Period Drama</option>
+                        <option value="Horror">👻 Horror</option>
+                    </select>
+                </div>
+
                 <textarea class="story-textarea" id="storylineInput"
                     placeholder="e.g. A reclusive inventor discovers an alien artifact under his barn in 1950s rural Montana…"
                     maxlength="2000" rows="6"></textarea>
@@ -92,6 +115,10 @@
             <div class="section-header">
                 <h2 class="section-title">📜 Screenplay</h2>
                 <div class="export-bar">
+                    <button class="btn btn--outline btn--sm" onclick="speakScreenplay()" id="speakBtn">
+                        <span class="btn-icon">🎧</span> Listen
+                    </button>
+                    <div class="divider-vertical"></div>
                     <span class="export-label">Export:</span>
                     <button class="btn btn--export" onclick="exportSection('screenplay','txt')">TXT</button>
                     <button class="btn btn--export" onclick="exportSection('screenplay','pdf')">PDF</button>

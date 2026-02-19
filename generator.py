@@ -25,7 +25,7 @@ SECTION_MARKERS = {
 }
 
 
-def build_prompt(storyline: str) -> str:
+def build_prompt(storyline: str, genre: str = "Cinematic Default") -> str:
     """
     Construct the structured prompt sent to the Granite4 Micro model.
 
@@ -34,64 +34,63 @@ def build_prompt(storyline: str) -> str:
 
     Args:
         storyline: The user's story concept (plain text).
+        genre: The requested genre/tone (e.g., "Horror", "Film Noir").
 
     Returns:
         A formatted prompt string.
     """
-    return f"""You are a professional screenwriter, character analyst, and sound designer.
+    return f"""You are a professional screenwriter, character analyst, and sound designer specializing in the {genre} style, with a focus on Indian/Telugu cinema (Tollywood) storytelling.
 Based on the following story concept, produce three sections in order.
 Use EXACTLY the section markers shown below — do not add extra text before or after them.
 
 Story concept: {storyline}
+Genre/Style: {genre}. Ensure the screenplay, characters, and sound design strictly reflect this tone. Use Indian/Telugu names and cultural context.
 
 IMPORTANT: DO NOT output any introductory text (like "Here is the screenplay"). Output ONLY the requested sections.
 
 {SECTION_MARKERS['screenplay']}
-Write a professional screenplay (3–5 scenes) with proper formatting:
-- Scene headings in ALL CAPS (ex: INT. ROOM - NIGHT)
-- Character names centered above dialogue
-- Action lines in sentence case describing what we see
-- Dialogue in standard screenplay format with proper spacing
+Write a comprehensive, professional screenplay (exactly 6 EXTENDED, DENSE scenes) with proper formatting.
+IMPORTANT: Number every scene header (e.g., "SCENE 1: INT. HOUSE - DAY").
+- Focus on CRYSTAL CLEAR VISUALIZATION and LOGICAL FLOW.
+- Do not rush. Develop each scene fully.
+- Character names centered above dialogue (Use Indian names like Arjun, Priya, Rao, etc.)
+- EXTREME DETAIL in Action lines: Describe the setting, atmosphere, micro-expressions, and props in depth.
+- Extended Dialogue: Write long, meaningful conversations. Include "punch dialogues" and emotional monologues.
 
 {SECTION_MARKERS['characters']}
-Write detailed character profiles (~150 words each) for the 2–3 main characters.
+Write detailed character profiles (~200 words each) for the 2–3 main characters (Use Indian/Telugu names).
+Format exactly like this:
+### NAME
+Description...
+
 For each character include:
 - Name and Age
-- Background and Personality
+- Background and Personality (Indian context)
 - Psychological depth
 - Motivations
 - Character arc
 
 {SECTION_MARKERS['sound']}
 Write a scene-by-scene sound design guide.
-For each scene list:
-- Ambient sounds
-- Sound effects (Foley)
-- Background music suggestions
-- Mixing notes
-- Mood based recommendations
-Format each scene with its heading (e.g. Scene 1: INT. BARN - NIGHT).
+IMPORTANT: You MUST match the scene numbers from the screenplay EXACTLY.
+Format:
+"SCENE 1: [Slugline]"
+- Ambient: [Details]
+- FX: [Details]
+- Music: [Details]
+
+"SCENE 2: [Slugline]"
+... and so on for ALL scenes.
 
 {SECTION_MARKERS['end']}
 """
 
 
-def _extract_section(text: str, start_marker: str, end_marker: str) -> str:
-    """Extract text between two markers, stripping whitespace."""
-    try:
-        start = text.index(start_marker) + len(start_marker)
-        end = text.index(end_marker, start)
-        return text[start:end].strip()
-    except ValueError:
-        return ""
-
+import re
 
 def parse_response(raw: str) -> dict:
     """
-    Split the raw model response into three sections.
-
-    Falls back to splitting the text into thirds if markers are missing
-    (e.g. the model ignored the format instructions).
+    Split the raw model response into three sections using robust regex.
 
     Args:
         raw: The full text returned by the model.
@@ -100,29 +99,65 @@ def parse_response(raw: str) -> dict:
         Dict with keys 'screenplay', 'characters', 'sound'.
     """
     m = SECTION_MARKERS
-    # Check if any section markers are present at all
-    markers_present = m["screenplay"] in raw and m["characters"] in raw and m["sound"] in raw and m["end"] in raw
+    
+    # 1. Clean up regex patterns to be flexible with whitespace
+    # Matches "===SCREENPLAY===" with optional surrounding whitespace/formatting
+    def search_marker(marker):
+        # Escape the marker and allow for whitespace or markdown formatting around it
+        # e.g. **===SCREENPLAY===** or === SCREENPLAY ===
+        clean_marker = re.escape(marker).replace(r'\ ', r'\s*')
+        # Allow optional markdown bold/italic chars or spaces around
+        pattern = r"(?:\*\*|__)?\s*" + clean_marker + r"\s*(?:\*\*|__)?"
+        return re.search(pattern, raw, re.IGNORECASE)
 
-    if not markers_present:
-        # Fallback: markers were not respected — split into thirds
-        logger.warning("Section markers not found; falling back to thirds split.")
-        third = max(len(raw) // 3, 1)
-        screenplay = raw[:third].strip()
-        characters = raw[third : 2 * third].strip()
-        sound = raw[2 * third :].strip()
+    # Find positions of all markers
+    sp_match = search_marker(m["screenplay"])
+    ch_match = search_marker(m["characters"])
+    sd_match = search_marker(m["sound"])
+    end_match = search_marker(m["end"])
+
+    # Helper to extract text between two optional match objects
+    def extract(start_match, end_match_candidate):
+        if not start_match:
+            return ""
+        start_idx = start_match.end()
+        end_idx = end_match_candidate.start() if end_match_candidate else len(raw)
+        return raw[start_idx:end_idx].strip()
+
+    # Logic: try to find sections based on available markers
+    # We assume the order: Screenplay -> Characters -> Sound
+    
+    screenplay = ""
+    characters = ""
+    sound = ""
+
+    # If NO markers found at all, fall back to thirds
+    if not (sp_match or ch_match or sd_match):
+        logger.warning("No section markers found. Falling back to thirds split.")
+        L = len(raw)
+        screenplay = raw[:L//3].strip()
+        characters = raw[L//3 : 2*L//3].strip()
+        sound = raw[2*L//3:].strip()
     else:
-        screenplay = _extract_section(raw, m["screenplay"], m["characters"])
-        characters = _extract_section(raw, m["characters"], m["sound"])
-        sound = _extract_section(raw, m["sound"], m["end"])
+        # Extract Screenplay: from SP marker to CH marker (or SD, or End, or EOF)
+        next_after_sp = ch_match or sd_match or end_match
+        screenplay = extract(sp_match, next_after_sp)
+
+        # Extract Characters: from CH marker to SD marker (or End, or EOF)
+        next_after_ch = sd_match or end_match
+        characters = extract(ch_match, next_after_ch)
+
+        # Extract Sound: from SD marker to End marker (or EOF)
+        sound = extract(sd_match, end_match)
 
     return {
-        "screenplay": screenplay or "(No screenplay generated.)",
+        "screenplay": screenplay or "(No screenplay generated. Try again or check the logs.)",
         "characters": characters or "(No character profiles generated.)",
         "sound": sound or "(No sound design notes generated.)",
     }
 
 
-def generate_content(storyline: str) -> dict:
+def generate_content(storyline: str, genre: str = "Cinematic Default") -> dict:
     """
     Call the local Ollama API and return parsed screenplay, characters, sound.
 
@@ -130,6 +165,7 @@ def generate_content(storyline: str) -> dict:
 
     Args:
         storyline: The user's story concept.
+        genre: The requested genre/tone.
 
     Returns:
         Dict with keys 'screenplay', 'characters', 'sound'.
@@ -137,7 +173,7 @@ def generate_content(storyline: str) -> dict:
     Raises:
         RuntimeError: If the Ollama server is unreachable after all retries.
     """
-    prompt = build_prompt(storyline)
+    prompt = build_prompt(storyline, genre)
     payload = {
         "model": MODEL,
         "prompt": prompt,
@@ -152,7 +188,7 @@ def generate_content(storyline: str) -> dict:
     for attempt in range(MAX_RETRIES):
         try:
             logger.info("Ollama request attempt %d/%d", attempt + 1, MAX_RETRIES)
-            resp = requests.post(OLLAMA_URL, json=payload, timeout=300)
+            resp = requests.post(OLLAMA_URL, json=payload, timeout=600)
             resp.raise_for_status()
             data = resp.json()
             raw_text = data.get("response", "")

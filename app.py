@@ -126,6 +126,8 @@ def create_app(test_config=None):
             return jsonify({"error": "Invalid request body."}), 400
 
         storyline = data.get("storyline", "").strip()
+        genre = data.get("genre", "Cinematic Default")
+
         if not storyline:
             return jsonify({"error": "Please provide a story concept."}), 400
         if len(storyline) > 2000:
@@ -133,7 +135,7 @@ def create_app(test_config=None):
 
         # Store in session for download use
         try:
-            result = generate_content(storyline)
+            result = generate_content(storyline, genre)
         except RuntimeError as exc:
             logger.error("Content generation failed: %s", exc)
             return jsonify({"error": str(exc)}), 500
@@ -192,7 +194,7 @@ def create_app(test_config=None):
             if fmt == "txt":
                 buf = to_txt(content, section)
             elif fmt == "pdf":
-                buf = to_pdf(content, section)
+                buf = to_pdf(content, section, username=username)
             else:
                 buf = to_docx(content, section)
         except Exception as exc:
@@ -212,7 +214,7 @@ def create_app(test_config=None):
     def not_found(e):
         if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
             return jsonify({"error": "Not found."}), 404
-        return render_template("login.html"), 404
+        return render_template("landing.html"), 404
 
     @app.errorhandler(500)
     def server_error(e):

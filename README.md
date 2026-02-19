@@ -1,139 +1,64 @@
 # 🎬 Cinema Studio
+> **The Offline AI Writer's Room** — Where your story stays yours.
 
-> **AI-Powered Storyboard & Script Generator** — runs entirely offline using IBM's Granite4 Micro model via Ollama.
-
----
-
-## Features
-
-- **Simple Access** — No registration required; just enter your name to start
-- **AI Story Pipeline** — Enter a story concept → get a full screenplay, character profiles, and sound design notes
-- **Export** — Download any section as **TXT**, **PDF**, or **DOCX**
-- **100% Offline** — All AI inference runs locally via Ollama; no external APIs at runtime
+**Cinema Studio** is a privacy-first, offline creative suite that turns a simple idea into a Hollywood-ready package. Powered by **Ollama (Granite4 Micro)**, it runs entirely on your local machine—zero cloud fees, zero data leakage.
 
 ---
 
-## Requirements
+## 🌟 Why Cinema Studio? (Unique Features)
 
-| Tool | Version |
-|------|---------|
-| Python | 3.8+ |
-| Ollama | Latest |
-| Granite4 Micro model | via `ollama pull` |
+### 1. 🎥 Director Mode (Genre Control)
+Don't settle for generic AI output. Force the engine to write in specific styles:
+- **Film Noir** (Shadowy, cynical)
+- **Cyberpunk** (High-tech, low-life)
+- **Horror** (Tense, psychological)
+- *And more...*
+
+### 2. 🎧 Table Read (Instant Audio)
+Hear your dialogue performed instantly. The built-in **Text-to-Speech Engine** acts as your cast, helping you catch awkward rhythm and pacing before you export.
+
+### 3. 🔒 100% Offline & Private
+Your Intellectual Property (IP) never leaves your device. Perfect for:
+- Confidential scripts
+- Airplane mode writing
+- Zero-cost inference
+
+### 4. 💾 Professional Workflow
+- **State Management**: Save/Load your entire project (`.json`) to resume work anytime.
+- **Industry Exports**: Download formatted **PDFs**, **DOCXs**, and **TXT** files.
+- **Cinema Experience**: Enjoy movie trivia and cinematic visuals while the AI works.
 
 ---
 
-## Setup
+## 🚀 Quick Start
 
 ### 1. Install Ollama
-
 Download from [https://ollama.com](https://ollama.com) and install for your OS.
 
-### 2. Pull the Granite4 Micro model
-
+### 2. Pull the Model
 ```bash
 ollama pull granite4:micro
 ```
 
-### 3. Start the Ollama server
-
+### 3. Start the Server
 ```bash
 ollama serve
 ```
 
-> Ollama runs on `http://localhost:11434` by default.
-
-### 4. Clone / navigate to the project
-
+### 4. Run Cinema Studio
 ```bash
-cd /path/to/cofmov
-```
-
-### 5. Create a virtual environment and install dependencies
-
-```bash
-python3 -m venv venv
-source venv/bin/activate       # macOS/Linux
-# venv\Scripts\activate        # Windows
-
 pip install -r requirements.txt
-```
-
-### 6. Run the app
-
-```bash
 python app.py
 ```
-
-Open your browser at **http://127.0.0.1:5000**
-
----
-
-## Usage
-
-1. **Enter Name** on the Landing Page
-2. On the **Dashboard**, enter your story concept (up to 2000 characters)
-3. Click **Generate Script** — the AI will produce:
-   - 📜 A formatted screenplay (INT./EXT. headings, dialogue)
-   - 🎭 Character profiles (~150 words each, psychological depth)
-   - 🎵 Scene-by-scene sound design notes
-4. **Export** any section as TXT, PDF, or DOCX using the buttons in each section
+Open **http://127.0.0.1:5000** in your browser.
 
 ---
 
-## Project Structure
-
-```
-cofmov/
-├── app.py           # Flask app factory, routes
-├── generator.py     # Ollama API integration & prompt builder
-├── export.py        # TXT / PDF / DOCX generation
-├── requirements.txt
-├── templates/
-│   ├── base.html
-│   ├── landing.html
-│   └── dashboard.html
-├── static/
-│   ├── css/style.css
-│   └── js/main.js
-└── tests/
-    ├── conftest.py
-    └── test_generator.py
-```
-
----
-
-## Running Tests
-
-```bash
-pytest tests/ -v
-```
-
-Tests use an in-memory SQLite database and mock the Ollama API — no Ollama server needed for testing.
-
----
-
-## Security Notes
-
-- Passwords are **never stored in plaintext** (Werkzeug PBKDF2-SHA256 hashing)
-- All SQL queries use **parameterized statements** (no string formatting)
-- **CSRF tokens** on every form (Flask-WTF)
-- Session cookies are **HttpOnly** by default; set `SESSION_COOKIE_SECURE=True` in production (HTTPS)
-- Generated content is **not persisted** to disk — held in session memory only
-
----
-
-## Configuration
-
-Set the `SECRET_KEY` environment variable in production:
-
-```bash
-export SECRET_KEY="your-very-long-random-secret-key"
-python app.py
-```
-
----
+## 🛠️ Tech Stack
+- **Backend**: Flask (Python)
+- **AI Engine**: Ollama (Llama/Granite models)
+- **Frontend**: Vanilla JS + CSS3 (No heavy frameworks)
+- **Storage**: In-memory session + JSON export
 
 ## License
-
 MIT

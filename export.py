@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable, PageBreak
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from docx import Document
 from docx.shared import Pt, RGBColor, Inches
@@ -48,66 +48,159 @@ def to_txt(content: str, section: str) -> io.BytesIO:
 
 # ─── PDF ──────────────────────────────────────────────────────────────────────
 
-def to_pdf(content: str, section: str) -> io.BytesIO:
+def to_pdf(content: str, section: str, username: str = "User") -> io.BytesIO:
     """
     Generate a styled PDF using ReportLab.
 
     Args:
         content: The generated text for this section.
         section: One of 'screenplay', 'characters', 'sound'.
+        username: The name of the user to display on the title page.
 
     Returns:
         BytesIO containing PDF bytes.
     """
+    # Standard Hollywood margins: Left 1.5", Right 1.0", Top/Bottom 1.0"
     buf = io.BytesIO()
     doc = SimpleDocTemplate(
         buf,
         pagesize=LETTER,
-        leftMargin=1.2 * inch,
-        rightMargin=1.2 * inch,
-        topMargin=1 * inch,
-        bottomMargin=1 * inch,
+        leftMargin=1.5 * inch,
+        rightMargin=1.0 * inch,
+        topMargin=1.0 * inch,
+        bottomMargin=1.0 * inch,
     )
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "CWCTitle",
-        parent=styles["Title"],
-        fontSize=20,
-        textColor=colors.HexColor("#C8A96E"),
-        spaceAfter=6,
-        alignment=TA_CENTER,
-    )
-    subtitle_style = ParagraphStyle(
-        "CWCSubtitle",
+    
+    # Custom Screenplay Styles
+    style_normal = ParagraphStyle(
+        "ScreenplayNormal",
         parent=styles["Normal"],
-        fontSize=13,
-        textColor=colors.HexColor("#8B9DC3"),
-        spaceAfter=16,
-        alignment=TA_CENTER,
-    )
-    body_style = ParagraphStyle(
-        "CWCBody",
-        parent=styles["Normal"],
-        fontSize=10,
-        leading=15,
-        textColor=colors.HexColor("#2C2C2C"),
-        spaceAfter=8,
+        fontName="Courier",
+        fontSize=12,
+        leading=12,  # Single spacing (12pt leading for 12pt font is tight, standard is usually 12pt font on 12pt line? Actually usually loose. Let's stick to simple.) 
+        # Actually standard is 6 lines per inch -> 12pt leading.
+        spaceAfter=0,
         alignment=TA_LEFT,
-        fontName="Courier" if section == "screenplay" else "Helvetica",
+        textColor=colors.black,
     )
 
-    title = SECTION_TITLES.get(section, section.title())
-    story = [
-        Paragraph("CINEMA STUDIO", title_style),
-        Paragraph(title, subtitle_style),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor("#C8A96E")),
-        Spacer(1, 0.2 * inch),
-    ]
+    style_slugline = ParagraphStyle(
+        "ScreenplaySlug",
+        parent=style_normal,
+        fontName="Courier-Bold",
+        spaceBefore=12,
+        spaceAfter=12,
+        keepWithNext=True,
+    )
 
-    for line in content.split("\n"):
-        safe_line = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        story.append(Paragraph(safe_line if safe_line.strip() else "&nbsp;", body_style))
+    style_character = ParagraphStyle(
+        "ScreenplayChar",
+        parent=style_normal,
+        leftIndent=2.0 * inch, # Character names centered-ish (approx 3.7" from left edge, but margin is 1.5, so +2.2? Let's use indent)
+        # Standard: Character name starts at 3.7" from left edge of page. 
+        # Margin 1.5 -> need 2.2 inch indent.
+        spaceBefore=12,
+        keepWithNext=True,
+    )
+
+    style_dialogue = ParagraphStyle(
+        "ScreenplayDialogue",
+        parent=style_normal,
+        leftIndent=1.0 * inch, # Dialogue starts at ~2.5" from left edge.
+        rightIndent=1.0 * inch, # Wraps at ~6.0" from left edge.
+    )
+
+    style_parenthetical = ParagraphStyle(
+        "ScreenplayParen",
+        parent=style_normal,
+        leftIndent=1.6 * inch,
+        keepWithNext=True,
+    )
+
+    # Title Page
+    title_style = ParagraphStyle(
+        "TitlePageTitle",
+        parent=styles["Normal"],
+        fontName="Courier-Bold",
+        fontSize=24,
+        alignment=TA_CENTER,
+        spaceBefore=3 * inch,
+        spaceAfter=0.5 * inch,
+    )
+    
+    subtitle_style = ParagraphStyle(
+        "TitlePageSub",
+        parent=styles["Normal"],
+        fontName="Courier",
+        fontSize=12,
+        alignment=TA_CENTER,
+    )
+
+    # Content Building
+    story = []
+
+    # Simple Title Page if it's the screenplay section
+    if section == "screenplay":
+        story.append(Paragraph("CINEMA STUDIO PROJECT", title_style))
+        story.append(Paragraph(SECTION_TITLES.get(section, ""), subtitle_style))
+        story.append(Paragraph(f"Screenplay by {username}", subtitle_style))
+        story.append(Paragraph("Generated by Granite4 Micro", subtitle_style))
+        story.append(PageBreak())
+
+    # Helper to process Markdown-like formatting (bold)
+    def format_markdown(text):
+        # bold **text** -> <b>text</b>
+        # We need to be careful not to break XML. ReportLab supports extremely simple tags.
+        # It's safer to just do simple replacements for now.
+        processed = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        
+        # Bold: **...**
+        if "**" in processed:
+             parts = processed.split("**")
+             # Reassemble with alternating <b> tags
+             # logic: even indices are normal, odd are bold
+             new_parts = []
+             for i, p in enumerate(parts):
+                 if i % 2 == 1:
+                     new_parts.append(f"<b>{p}</b>")
+                 else:
+                     new_parts.append(p)
+             processed = "".join(new_parts)
+             
+        # Headers: ### Name -> <b>Name</b>
+        if processed.startswith("### "):
+            processed = f"<b>{processed[4:].strip()}</b>"
+        elif processed.startswith("## "):
+            processed = f"<b>{processed[3:].strip()}</b>"
+            
+        return processed
+
+    # Build the script
+    lines = content.split("\n")
+    for line in lines:
+        raw = line.strip()
+        if not raw:
+            story.append(Spacer(1, 12)) # Blank line
+            continue
+
+        # Logic to guess element type
+        # 1. Slugline (INT./EXT.)
+        if raw.startswith(("INT.", "EXT.", "INT /", "EXT /", "EST.")) or raw.startswith("SCENE"):
+            story.append(Paragraph(format_markdown(raw.upper()), style_slugline))
+        
+        # 2. Character Cue (All Caps, short, not a slugline, no lowercase unless specific exclusions)
+        elif raw.isupper() and len(raw) < 50 and not raw.startswith("("):
+            story.append(Paragraph(format_markdown(raw), style_character))
+
+        # 3. Parenthetical
+        elif raw.startswith("(") and raw.endswith(")"):
+            story.append(Paragraph(format_markdown(raw), style_parenthetical))
+        
+        # 4. Default to Action/Dialogue (Normal)
+        else:
+             story.append(Paragraph(format_markdown(raw), style_normal))
 
     doc.build(story)
     buf.seek(0)
