@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+flask_session/
+*.db
+instance/
+.env
+.venv
+venv/
+ENV/
+bin/
+lib/
+include/
+.idea/
+.vscode/
+*.json
+!Cinema_Studio_Project_*.json
