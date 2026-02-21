@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function generateContent() {
     const storyline = document.getElementById('storylineInput')?.value?.trim();
     const genre = document.getElementById('genreSelect')?.value || 'Cinematic Default';
+    const characterNames = document.getElementById('characterNamesInput')?.value?.trim() || '';
     const errorDiv = document.getElementById('generateError');
     const btn = document.getElementById('generateBtn');
     const overlay = document.getElementById('loadingOverlay');
@@ -170,7 +171,7 @@ async function generateContent() {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken(),
             },
-            body: JSON.stringify({ storyline, genre }),
+            body: JSON.stringify({ storyline, genre, characterNames }),
         });
 
         const data = await resp.json();
@@ -183,6 +184,13 @@ async function generateContent() {
         populateScreenplay(data.screenplay || '');
         populateCharacters(data.characters || '');
         populateSound(data.sound || '');
+
+        // Global state for renaming
+        window.currentContent = {
+            screenplay: data.screenplay || '',
+            characters: data.characters || '',
+            sound: data.sound || ''
+        };
 
         // Enable sidebar links
         document.querySelectorAll('.sidebar__link.disabled').forEach(link => {
@@ -228,7 +236,7 @@ function populateScreenplay(text) {
     const output = document.getElementById('screenplay-output');
     if (!output) return;
 
-    output.textContent = text;
+    output.innerHTML = parseMd(text);
     if (placeholder) placeholder.style.display = 'none';
     output.style.display = 'block';
 }
@@ -282,7 +290,7 @@ function populateCharacters(text) {
         if (!body && !name) return;
         const card = document.createElement('div');
         card.className = 'character-card';
-        card.innerHTML = `<h3>${escHtml(name)}</h3><p>${escHtml(body).replace(/\n/g, '<br>')}</p>`;
+        card.innerHTML = `<h3>${escHtml(name)}</h3><p>${parseMd(body)}</p>`;
         output.appendChild(card);
     });
 
@@ -338,7 +346,7 @@ function populateSound(text) {
         if (!body && !heading) return;
         const scene = document.createElement('div');
         scene.className = 'sound-scene';
-        scene.innerHTML = `<h3>${escHtml(heading)}</h3><p>${escHtml(body).replace(/\n/g, '<br>')}</p>`;
+        scene.innerHTML = `<h3>${escHtml(heading)}</h3><p>${parseMd(body)}</p>`;
         output.appendChild(scene);
     });
 
@@ -351,6 +359,56 @@ function exportSection(section, fmt) {
     window.location.href = `/download/${section}/${fmt}`;
 }
 
+// ── Rename Everywhere ───────────────────────────────────────────────────────
+window.currentContent = { screenplay: '', characters: '', sound: '' };
+
+function showRenameModal() {
+    const modal = document.getElementById('renameModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        document.getElementById('oldNameInput')?.focus();
+    }
+}
+
+function closeRenameModal() {
+    const modal = document.getElementById('renameModal');
+    if (modal) {
+        modal.style.display = 'none';
+        const oldInput = document.getElementById('oldNameInput');
+        const newInput = document.getElementById('newNameInput');
+        if (oldInput) oldInput.value = '';
+        if (newInput) newInput.value = '';
+    }
+}
+
+function renameCharacter() {
+    const oldName = document.getElementById('oldNameInput')?.value?.trim();
+    const newName = document.getElementById('newNameInput')?.value?.trim();
+
+    if (!oldName || !newName) {
+        alert('Please provide both current and new names.');
+        return;
+    }
+
+    if (!window.currentContent || !window.currentContent.screenplay) {
+        alert('No content to rename. Please generate a script first.');
+        return;
+    }
+
+    const escapedOld = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
+
+    window.currentContent.screenplay = window.currentContent.screenplay.replace(regex, newName);
+    window.currentContent.characters = window.currentContent.characters.replace(regex, newName);
+    window.currentContent.sound = window.currentContent.sound.replace(regex, newName);
+
+    populateScreenplay(window.currentContent.screenplay);
+    populateCharacters(window.currentContent.characters);
+    populateSound(window.currentContent.sound);
+
+    closeRenameModal();
+}
+
 // ── Utility ──────────────────────────────────────────────────────────────────
 function escHtml(str) {
     return str
@@ -358,6 +416,30 @@ function escHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Basic Markdown-to-HTML parser for bolding and line breaks.
+ */
+function parseMd(text) {
+    if (!text) return '';
+    // 1. Escape HTML first
+    let escaped = escHtml(text);
+
+    // 2. Horizontal rules: --- or *** on own line
+    escaped = escaped.replace(/^(?:---|\*\*\*)$/gm, '<hr>');
+
+    // 3. Bold: **text** (including multiline)
+    escaped = escaped.replace(/\*\*([\s\S]*?)\*\*/g, '<strong>$1</strong>');
+
+    // 4. Italic: *text* (including multiline)
+    escaped = escaped.replace(/\*([\s\S]*?)\*/g, '<em>$1</em>');
+
+    // 5. Headings: ###
+    escaped = escaped.replace(/^#{1,6}\s*(.*)$/gm, '<strong>$1</strong>');
+
+    // 6. Newlines: \n -> <br>
+    return escaped.replace(/\n/g, '<br>');
 }
 
 // ── Table Read (TTS) ─────────────────────────────────────────────────────────

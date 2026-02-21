@@ -98,9 +98,8 @@ def to_pdf(content: str, section: str, username: str = "User") -> io.BytesIO:
     style_character = ParagraphStyle(
         "ScreenplayChar",
         parent=style_normal,
-        leftIndent=2.0 * inch, # Character names centered-ish (approx 3.7" from left edge, but margin is 1.5, so +2.2? Let's use indent)
-        # Standard: Character name starts at 3.7" from left edge of page. 
-        # Margin 1.5 -> need 2.2 inch indent.
+        fontName="Courier-Bold", # Bold as requested
+        leftIndent=2.0 * inch,
         spaceBefore=12,
         keepWithNext=True,
     )
@@ -206,7 +205,11 @@ def to_pdf(content: str, section: str, username: str = "User") -> io.BytesIO:
         
         # 4. Default to Action/Dialogue (Normal)
         else:
-             story.append(Paragraph(format_markdown(raw), style_normal))
+             fmt_line = format_markdown(raw)
+             # Bold all-caps lines (except parentheticals)
+             if raw.isupper() and len(raw) < 60 and not raw.startswith("("):
+                 fmt_line = f"<b>{fmt_line}</b>"
+             story.append(Paragraph(fmt_line, style_normal))
 
     doc.build(story)
     buf.seek(0)

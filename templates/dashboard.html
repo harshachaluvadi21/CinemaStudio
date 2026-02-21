@@ -45,7 +45,7 @@
                 <div class="sidebar__avatar">{{ username[0].upper() }}</div>
                 <span class="sidebar__username">{{ username }}</span>
             </div>
-            <a href="{{ url_for('logout') }}" class="btn btn--ghost btn--sm">Exit</a>
+            <a href="{{ url_for('auth.logout') }}" class="btn btn--ghost btn--sm">Exit</a>
         </div>
     </aside>
 
@@ -53,7 +53,7 @@
     <header class="mobile-header">
         <button class="hamburger" id="hamburger" aria-label="Toggle menu">☰</button>
         <span class="mobile-header__title">🎬 Cinema Studio</span>
-        <a href="{{ url_for('logout') }}" class="btn btn--ghost btn--sm">Exit</a>
+        <a href="{{ url_for('auth.logout') }}" class="btn btn--ghost btn--sm">Exit</a>
     </header>
 
     <!-- ── Main content ───────────────────────────────────────────────── -->
@@ -86,6 +86,13 @@
                 <textarea class="story-textarea" id="storylineInput"
                     placeholder="e.g. A reclusive inventor discovers an alien artifact under his barn in 1950s rural Montana…"
                     maxlength="2000" rows="6"></textarea>
+
+                <div class="character-names-config" style="margin-top: 1.5rem;">
+                    <label class="form-label" for="characterNamesInput">Desired Characters (Optional)</label>
+                    <input type="text" class="form-input" id="characterNamesInput"
+                        placeholder="e.g. Arjun (a brave cop), Priya (his sister)"
+                        style="width: 100%; margin-top: 0.5rem;">
+                </div>
                 <div class="story-meta">
                     <span class="char-counter"><span id="charCount">0</span> / 2000</span>
                 </div>
@@ -138,6 +145,10 @@
             <div class="section-header">
                 <h2 class="section-title">🎭 Character Profiles</h2>
                 <div class="export-bar">
+                    <button class="btn btn--outline btn--sm" onclick="showRenameModal()" style="margin-right: 0.5rem;">
+                        <span class="btn-icon">✏️</span> Rename All
+                    </button>
+                    <div class="divider-vertical"></div>
                     <span class="export-label">Export:</span>
                     <button class="btn btn--export" onclick="exportSection('characters','txt')">TXT</button>
                     <button class="btn btn--export" onclick="exportSection('characters','pdf')">PDF</button>
@@ -174,10 +185,57 @@
     </main>
 </div>
 
+<!-- Rename Everywhere Modal -->
+<div id="renameModal" class="loading-overlay"
+    style="display:none; align-items: center; justify-content: center; z-index: 10001; background: rgba(10, 11, 14, 0.95);">
+    <div class="loading-card" style="max-width: 400px; text-align: left; animation: fadeInScale 0.3s ease-out;">
+        <h2 style="font-family: 'Playfair Display', serif; color: var(--gold); margin-bottom: 1rem; font-size: 1.5rem;">
+            Rename Everywhere</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem; line-height: 1.4;">
+            This will update the character name across the Screenplay, Profiles, and Sound Design sections instantly.
+        </p>
+
+        <div style="margin-bottom: 1rem;">
+            <label
+                style="display: block; color: var(--gold); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Current
+                Name</label>
+            <input type="text" id="oldNameInput" class="form-input" placeholder="e.g. Arjun" style="width: 100%;">
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+            <label
+                style="display: block; color: var(--gold); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">New
+                Name</label>
+            <input type="text" id="newNameInput" class="form-input" placeholder="e.g. Rahul" style="width: 100%;">
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn--primary btn--sm" onclick="renameCharacter()" style="flex: 1;">Apply Changes</button>
+            <button class="btn btn--ghost btn--sm" onclick="closeRenameModal()" style="flex: 1;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    @keyframes fadeInScale {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+</style>
+
 <!-- Full-screen loading overlay -->
 <div class="loading-overlay" id="loadingOverlay" style="display:none;">
     <div class="loading-card">
-        <div class="film-reel"></div>
+        <div class="film-reel">
+            <div class="film-reel-core"></div>
+        </div>
         <p class="loading-title">Crafting your story…</p>
         <p class="loading-sub">The AI is writing your screenplay, characters, and sound design. This may take a moment.
         </p>

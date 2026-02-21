@@ -7,25 +7,12 @@
         <h1 class="landing-title">Cinema Studio</h1>
         <p class="landing-subtitle">Turn your story idea into a professional screenplay, character profiles, and sound
             design.</p>
-        <button class="btn btn--primary btn--lg" id="startBtn">Get Started</button>
-    </div>
-</div>
-
-<!-- Name Entry Modal -->
-<div class="modal-overlay" id="nameModal" style="display:none;">
-    <div class="modal">
-        <h2 class="modal-title">Welcome!</h2>
-        <p class="modal-desc">Please enter your name to continue.</p>
-        <div class="form-group">
-            <input type="text" id="userNameInput" class="form-input" placeholder="Your Name" maxlength="30">
-            <p class="error-text" id="nameError" style="display:none;"></p>
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn--primary btn--full" id="continueBtn" disabled>Continue</button>
+        <div class="cta-group" style="display: flex; justify-content: center; gap: 1rem; margin-top: 2rem;">
+            <a href="{{ url_for('auth.login') }}" class="btn btn--primary btn--lg">Login</a>
+            <a href="{{ url_for('auth.signup') }}" class="btn btn--outline btn--lg"
+                style="color: var(--text-light); border-color: var(--border);">Sign Up</a>
         </div>
     </div>
-</div>
-</div>
 </div>
 
 <script>
@@ -34,38 +21,35 @@
         const titleElement = document.querySelector('.landing-title');
         if (!titleElement) return;
 
-        let phraseIndex = 0;
-        let charIndex = 0;
-        let isDeleting = false;
-        let typeSpeed = 100;
+        let currentIndex = 0;
 
-        function type() {
-            const currentPhrase = titleValues[phraseIndex];
+        function rotateTitle() {
+            // Fade out and slide up
+            titleElement.style.opacity = '0';
+            titleElement.style.transform = 'translateY(-20px)';
+            titleElement.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
 
-            if (isDeleting) {
-                titleElement.textContent = currentPhrase.substring(0, charIndex - 1);
-                charIndex--;
-                typeSpeed = 50;
-            } else {
-                titleElement.textContent = currentPhrase.substring(0, charIndex + 1);
-                charIndex++;
-                typeSpeed = 100;
-            }
+            setTimeout(() => {
+                currentIndex = (currentIndex + 1) % titleValues.length;
+                titleElement.textContent = titleValues[currentIndex];
 
-            if (!isDeleting && charIndex === currentPhrase.length) {
-                isDeleting = true;
-                typeSpeed = 2000; // Pause at end
-            } else if (isDeleting && charIndex === 0) {
-                isDeleting = false;
-                phraseIndex = (phraseIndex + 1) % titleValues.length;
-                typeSpeed = 500; // Pause before new phrase
-            }
+                // Prepare for entry from below
+                titleElement.style.transform = 'translateY(20px)';
 
-            setTimeout(type, typeSpeed);
+                // Trigger reflow
+                titleElement.offsetHeight;
+
+                // Fade in and slide to center
+                titleElement.style.opacity = '1';
+                titleElement.style.transform = 'translateY(0)';
+            }, 800);
         }
 
-        // Start effect
-        setTimeout(type, 1000);
+        // Start Rotation after delay
+        setInterval(rotateTitle, 4000);
+
+        // Initial state for the animation
+        titleElement.style.transition = 'all 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
     });
 </script>
 {% endblock %}
