@@ -9,6 +9,7 @@ parses the three sections from the response.
 import time
 import logging
 import requests
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,13 @@ Genre/Style: {genre}{char_instruction}
 Task: Produce a comprehensive screenplay, deep character profiles, and a complete scene-by-scene sound guide. Use Indian/Telugu names and cultural nuances naturally.
 
 {SECTION_MARKERS['screenplay']}
-Write a professional, cinematic screenplay (exactly 5 to 6 scenes).
-- IMPORTANT: Number every scene clearly (e.g., SCENE 1: INT. LOCATION - DAY).
-- Focus on logical flow, character development, and narrative depth.
-- Create vivid, evocative action lines that describe the atmosphere and character beats.
-- Write meaningful, extended dialogue that reflects the characters' status and emotions.
-- Avoid meta-labels like "**Action:**" — let the screenplay formatting speak for itself.
+Write a comprehensive, professional screenplay (exactly 6 EXTENDED, DENSE scenes) with proper formatting.
+IMPORTANT: Number every scene header (e.g., "SCENE 1: INT. HOUSE - DAY").
+- Focus on CRYSTAL CLEAR VISUALIZATION and LOGICAL FLOW.
+- Do not rush. Develop each scene fully.
+- Character names centered above dialogue (Use Indian names like Arjun, Priya, Rao, etc.)
+- EXTREME DETAIL in Action lines: Describe the setting, atmosphere, micro-expressions, and props in depth.
+- Extended Dialogue: Write long, meaningful conversations. Include "punch dialogues" and emotional monologues.
 
 {SECTION_MARKERS['characters']}
 Provide detailed character profiles for the main cast (2–3 characters).
@@ -69,8 +71,6 @@ SCENE 2: [Slugline]
 """
 
 
-import re
-
 def parse_response(raw: str) -> dict:
     """
     Split the raw model response into three sections using robust regex.
@@ -83,42 +83,17 @@ def parse_response(raw: str) -> dict:
     """
     m = SECTION_MARKERS
     
-    # 1. Clean up regex patterns to be flexible with whitespace
-def parse_response(raw: str) -> dict:
-    """
-    Split the raw model response into three sections using robust regex.
-    """
-    keywords = {
-        "screenplay": "SCREENPLAY",
-        "characters": "CHARACTERS",
-        "sound": "SOUND_DESIGN",
-        "end": "END"
-    }
+    # Matches markers with optional surrounding whitespace/formatting
+    def search_marker(marker):
+        clean_marker = re.escape(marker).replace(r'\ ', r'\s*')
+        pattern = r"(?:\*\*|__)?\s*" + clean_marker + r"\s*(?:\*\*|__)?"
+        return re.search(pattern, raw, re.IGNORECASE)
 
-    def find_section_start(key):
-        kw = keywords[key]
-        # 1. Strict: === KEY ===
-        pattern_strict = r"(?:\*\*|__)?\s*={2,}\s*" + re.escape(kw) + r"\s*={2,}\s*(?:\*\*|__)?"
-        match = re.search(pattern_strict, raw, re.IGNORECASE)
-        if match: return match
-        
-        # 2. Markdown Header: ### KEY
-        pattern_md = r"(?:\*\*|__)?\s*#{1,6}\s*" + re.escape(kw) + r"\s*(?:\*\*|__)?"
-        match_md = re.search(pattern_md, raw, re.IGNORECASE)
-        if match_md: return match_md
-
-        # 3. Bold/Standalone: **KEY** or just KEY on a line
-        pattern_loose = r"(?:^|\n)\s*(?:\*\*|__)?\s*" + re.escape(kw) + r"\s*(?:\*\*|__)?\s*(?:$|\n)"
-        match_loose = re.search(pattern_loose, raw, re.IGNORECASE | re.MULTILINE)
-        if match_loose: return match_loose
-
-        return None
-
-    # Find positions
-    sp_match = find_section_start("screenplay")
-    ch_match = find_section_start("characters")
-    sd_match = find_section_start("sound")
-    end_match = find_section_start("end")
+    # Find positions of all markers
+    sp_match = search_marker(m["screenplay"])
+    ch_match = search_marker(m["characters"])
+    sd_match = search_marker(m["sound"])
+    end_match = search_marker(m["end"])
 
     def extract(start_match, end_match_candidate):
         if not start_match: return ""
@@ -126,10 +101,7 @@ def parse_response(raw: str) -> dict:
         end_idx = end_match_candidate.start() if end_match_candidate else len(raw)
         return raw[start_idx:end_idx].strip()
 
-    screenplay = ""
-    characters = ""
-    sound = ""
-
+    # If NO markers found at all, fall back to thirds
     if not (sp_match or ch_match or sd_match):
         logger.warning("No section markers found. Falling back to thirds split.")
         L = len(raw)
@@ -137,25 +109,16 @@ def parse_response(raw: str) -> dict:
         characters = raw[L//3 : 2*L//3].strip()
         sound = raw[2*L//3:].strip()
     else:
-        # Screenplay mapping
-        sp_end = sp_match.end() if sp_match else 0
-        all_stops = [m for m in [ch_match, sd_match, end_match] if m and m.start() >= sp_end]
-        next_after_sp = min(all_stops, key=lambda m: m.start()) if all_stops else None
+        # Extract Screenplay: from SP marker to CH marker (or SD, or End, or EOF)
+        next_after_sp = ch_match or sd_match or end_match
         screenplay = extract(sp_match, next_after_sp)
 
-        # Characters mapping
-        if ch_match:
-            ch_end = ch_match.end()
-            all_stops_ch = [m for m in [sd_match, end_match] if m and m.start() >= ch_end]
-            next_after_ch = min(all_stops_ch, key=lambda m: m.start()) if all_stops_ch else None
-            characters = extract(ch_match, next_after_ch)
-            
-        # Sound mapping
-        if sd_match:
-            sd_end = sd_match.end()
-            all_stops_sd = [m for m in [end_match] if m and m.start() >= sd_end]
-            next_after_sd = min(all_stops_sd, key=lambda m: m.start()) if all_stops_sd else None
-            sound = extract(sd_match, next_after_sd)
+        # Extract Characters: from CH marker to SD marker (or End, or EOF)
+        next_after_ch = sd_match or end_match
+        characters = extract(ch_match, next_after_ch)
+
+        # Extract Sound: from SD marker to End marker (or EOF)
+        sound = extract(sd_match, end_match)
 
     return {
         "screenplay": screenplay or "(No screenplay generated. Try again.)",
